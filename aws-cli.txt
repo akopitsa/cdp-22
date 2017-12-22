@@ -1,0 +1,59 @@
+# Create VPC
+aws ec2 create-vpc --cidr-block 10.0.0.0/16
+# Create private subnet 
+aws ec2 create-subnet --vpc-id vpc-0ae7a772 --cidr-block 10.0.1.0/24
+# Create public subnet 
+aws ec2 create-subnet --vpc-id vpc-0ae7a772 --cidr-block 10.0.0.0/24
+# create GAteway
+aws ec2 create-internet-gateway
+# Attach gateway to vpc
+aws ec2 attach-internet-gateway --vpc-id vpc-0ae7a772 --internet-gateway-id igw-38357141
+# Create route table vo public
+aws ec2 create-route-table --vpc-id vpc-0ae7a772
+# Create route fir public net
+aws ec2 create-route --route-table-id rtb-4090613d --destination-cidr-block 0.0.0.0/0 --gateway-id igw-d5185cac
+
+# Optional to find subnet id
+aws ec2 describe-route-tables --route-table-id rtb-4090613d
+aws ec2 describe-subnets --filters "Name=vpc-id,Values=vpc-0ae7a772" --query 'Subnets[*].{ID:SubnetId,CIDR:CidrBlock}'
+
+# Associate route table
+aws ec2 associate-route-table  --subnet-id subnet-fa7acbd5 --route-table-id rtb-4090613d
+
+## EC2
+
+# create ssh key
+aws ec2 create-key-pair --key-name AwsCliKeyPair --query 'KeyMaterial' --output text > AwsCliKeyPair.pem
+# set permission
+chmod 400 AwsCliKeyPair.pem
+
+# Create Security Group
+aws ec2 create-security-group --group-name SSHAccess --description "Security group for SSH access" --vpc-id vpc-0ae7a772
+# Craete ingress rule
+aws ec2 authorize-security-group-ingress --group-id sg-af5c77da --protocol tcp --port 22 --cidr 0.0.0.0/0
+
+# Create nat instance
+aws ec2 run-instances --image-id ami-184dc970 --count 1 --instance-type t2.micro --key-name AwsCliKeyPair --security-group-ids sg-af5c77da --subnet-id subnet-8636a1b9 --associate-public-ip-address
+
+# Disable dest on Nat instance
+aws ec2 modify-network-interface-attribute --network-interface-id eni-12c7bfaa --no-source-dest-check
+
+# create route table for private net
+aws ec2 create-route-table --vpc-id vpc-0ae7a772
+
+# Create route to nat instance
+aws ec2 create-route --route-table-id rtb-225eaf5f --destination-cidr-block 0.0.0.0/0 --instance-id i-07f6afb8db4a31fd4
+
+# Optional to find subnet id
+aws ec2 describe-route-tables --route-table-id rtb-225eaf5f
+aws ec2 describe-subnets --filters "Name=vpc-id,Values=vpc-0ae7a772" --query 'Subnets[*].{ID:SubnetId,CIDR:CidrBlock}'
+
+# associate  route table an subnet for private net
+aws ec2 associate-route-table  --subnet-id subnet-b8099e87 --route-table-id rtb-225eaf5f
+
+# Create  simple ec2
+aws ec2 run-instances --image-id ami-aa2ea6d0 --count 1 --instance-type t2.micro --key-name AwsCliKeyPair --security-group-ids sg-af5c77da --subnet-id subnet-b8099e87
+
+# Create Security group rule between memeber in this sec group
+
+aws ec2 authorize-security-group-ingress --group-id sg-af5c77da --protocol all --source-group sg-af5c77da
